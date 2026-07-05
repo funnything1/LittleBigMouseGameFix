@@ -74,7 +74,7 @@
 								<CheckBox
 									Content="Hide tray icon"
 									IsChecked="{Binding Path=Model.HideTrayIcon, FallbackValue=false, Mode=TwoWay}"
-									ToolTip.Tip="Hide the system tray icon. Launch the app again to show the main window."/>
+									ToolTip.Tip="Hide the system tray icon."/>
 
 								<CheckBox
 									Content="Start with elevated privileges"
