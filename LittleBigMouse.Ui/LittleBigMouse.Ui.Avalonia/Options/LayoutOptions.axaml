@@ -70,7 +70,12 @@
 									Content="Start minimized"
 									IsChecked="{Binding Path=Model.StartMinimized, FallbackValue=false, Mode=TwoWay}"
 									ToolTip.Tip="Minimize to tray at startup."/>
-								
+
+								<CheckBox
+									Content="Hide tray icon"
+									IsChecked="{Binding Path=Model.HideTrayIcon, FallbackValue=false, Mode=TwoWay}"
+									ToolTip.Tip="Hide the system tray icon. Launch the app again to show the main window."/>
+
 								<CheckBox
 									Content="Start with elevated privileges"
 									IsChecked="{Binding Path=Model.StartElevated, FallbackValue=false, Mode=TwoWay}"

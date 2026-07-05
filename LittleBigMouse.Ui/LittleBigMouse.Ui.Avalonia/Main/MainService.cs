@@ -24,6 +24,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using HLab.Base.Avalonia;
@@ -55,6 +56,7 @@ public class MainService : ReactiveModel, IMainService
     readonly Func<MonitorsLayout> _getNewMonitorLayout;
     readonly IProcessesCollector _processesCollector;
     readonly Func<ApplicationUpdaterViewModel> _updaterLocator;
+    readonly ILayoutOptions _options;
 
 
     Action<IMainPluginsViewModel>? _actions;
@@ -76,8 +78,9 @@ public class MainService : ReactiveModel, IMainService
         IUserNotificationService notify,
         ISystemMonitorsService monitors,
         Func<MonitorsLayout> getNewMonitorLayout,
-        IProcessesCollector processesCollector, 
-        Func<ApplicationUpdaterViewModel> updaterLocator)
+        IProcessesCollector processesCollector,
+        Func<ApplicationUpdaterViewModel> updaterLocator,
+        ILayoutOptions options)
     {
         _notify = notify;
         _monitors = monitors;
@@ -85,6 +88,7 @@ public class MainService : ReactiveModel, IMainService
         _processesCollector = processesCollector;
         _updaterLocator = updaterLocator;
         _littleBigMouseClientService = littleBigMouseClientService;
+        _options = options;
 
         _mvvmService = mvvmService;
         _mainViewModelLocator = mainViewModelLocator;
@@ -143,12 +147,31 @@ public class MainService : ReactiveModel, IMainService
     {
         _notify.Click += async (s, a) => await ShowControlAsync();
 
+        _options.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName == nameof(ILayoutOptions.HideTrayIcon))
+                SetTrayVisible(!_options.HideTrayIcon);
+        };
+
+        // When a second instance launches, it signals this event instead of doing nothing.
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var evt = Program.ShowWindowEvent;
+                if (evt == null) return;
+                while (evt.WaitOne())
+                    await Dispatcher.UIThread.InvokeAsync(ShowControlAsync);
+            }
+            catch (ObjectDisposedException) { }
+        });
+
         await _notify.AddMenuAsync(-1, "Check for update","Icon/lbm_on", async () => await _updaterLocator().CheckUpdateAsync(true));
         await _notify.AddMenuAsync(-1, "Open","Icon/lbm_off", ShowControlAsync);
         await _notify.AddMenuAsync(-1, "Start","Icon/Start", StartAsync);
         await _notify.AddMenuAsync(-1, "Stop","Icon/Stop", () =>
         {
-            MonitorsLayout.Options.Enabled = false; 
+            MonitorsLayout.Options.Enabled = false;
             MonitorsLayout.SaveEnabled();
             return _littleBigMouseClientService.StopAsync();
         });
@@ -158,7 +181,19 @@ public class MainService : ReactiveModel, IMainService
 
         _notify.Show();
 
+        // Apply after SetIconAsync so the native icon update doesn't override the hidden state.
+        SetTrayVisible(!_options.HideTrayIcon);
+
     }
+
+    static void SetTrayVisible(bool visible) =>
+        Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            var icons = TrayIcon.GetIcons(Application.Current!);
+            if (icons == null) return;
+            foreach (var icon in icons)
+                icon.IsVisible = visible;
+        });
 
     public void AddControlPlugin(Action<IMainPluginsViewModel>? action)
     {
@@ -183,10 +218,12 @@ public class MainService : ReactiveModel, IMainService
             case LittleBigMouseEvent.Running:
                 _justConnected = false;
                 await _notify.SetIconAsync("icon/lbm_on",32);
+                SetTrayVisible(!_options.HideTrayIcon);
                 break;
 
             case LittleBigMouseEvent.Stopped:
                 await _notify.SetIconAsync("icon/lbm_off",32);
+                SetTrayVisible(!_options.HideTrayIcon);
 
                 if (MonitorsLayout is not null && MonitorsLayout.Options.Enabled && _justConnected)
                 {
@@ -197,10 +234,12 @@ public class MainService : ReactiveModel, IMainService
 
             case LittleBigMouseEvent.Dead:
                 await _notify.SetIconAsync("icon/lbm_dead",32);
+                SetTrayVisible(!_options.HideTrayIcon);
                 break;
 
             case LittleBigMouseEvent.Paused:
                 await _notify.SetIconAsync("icon/lbm_paused",32);
+                SetTrayVisible(!_options.HideTrayIcon);
                 break;
 
             case LittleBigMouseEvent.SettingsChanged:
